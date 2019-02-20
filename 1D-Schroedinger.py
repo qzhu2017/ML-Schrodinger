@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 plt.style.use("bmh")
 
 
-def numerov(m, h, q, s, u0=0, u1=0.01):
+def numerov(m, h, q, s=None, u0=0, u1=0.01):
     """
     Method to perform the Numerov integration
     Args:
@@ -16,6 +16,8 @@ def numerov(m, h, q, s, u0=0, u1=0.01):
 
     Return: 
     """
+    if s is None:
+        s = np.zeros(m)
 
     g = h*h/12
     u = np.empty(m)
@@ -86,7 +88,6 @@ class Solver():
         self.ur = np.zeros(self.nx)
         self.ql = np.zeros(self.nx)
         self.qr = np.zeros(self.nx)
-        self.s =  np.zeros(self.nx)
         self.u =  np.zeros(self.nx)
         
         self.ni = ni
@@ -163,8 +164,8 @@ class Solver():
         nl, nr = im+2, self.nx-im+1
         if im > 0:
             # Carry out the Numerov integrations
-            self.ul = numerov(nl, self.h, self.ql, self.s)
-            self.ur = numerov(nr, self.h, self.qr, self.s)
+            self.ul = numerov(nl, self.h, self.ql)
+            self.ur = numerov(nr, self.h, self.qr)
             # Find the wavefunction on the left 
             ratio = self.ur[nr-2]/self.ul[im]
             for i in range(im):
