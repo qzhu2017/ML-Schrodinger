@@ -220,6 +220,6 @@ if __name__ == "__main__":
     ax2.set_ylabel('$V(x)$')
     ax2.set_xlabel('$x$')
     plt.tight_layout()
-    plt.savefig('wavefunction.png')
+    plt.savefig('result.png')
     plt.close()
     #plt.show()
