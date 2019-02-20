@@ -180,17 +180,20 @@ if __name__ == "__main__":
     eigs = []
     ns = []
     waves = []
+    xs = []
     for e in np.linspace(-1.5, 2.8, 10):
         solver = Solver(v, e)
         if solver.n not in ns:
             ns.append(solver.n)
             eigs.append(solver.eigenvalue)
+            xs.append(solver.xs)
             waves.append(solver.u)
 
     for i, n in enumerate(ns):
-        eig_str = "{:4.2f}".format(eigs[i])
-        plt.plot(waves[i], label=str(n) + ': ' + eig_str)
+        eig_str = "{:6.2f}".format(eigs[i])
+        plt.plot(xs[i], waves[i], label=str(n) + ': ' + eig_str)
         #solver.plot_wavefunction()
     plt.legend()
     plt.savefig('wavefunction.png')
-    plt.show()
+    plt.close()
+    #plt.show()
