@@ -1,6 +1,7 @@
 # An example of solving the eigenvalue problem of the one-dimensional
 # Schroedinger equation via the secant and Numerov methods.
 # T. Pang (February 13, 2019)
+#
 
 from math import cosh, pow, sqrt
 from numpy import empty
