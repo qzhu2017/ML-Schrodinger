@@ -190,11 +190,12 @@ if __name__ == "__main__":
     for x in np.linspace(-10, 10, 501):
         vs.append([x, v(x)])
     vs = np.array(vs)
-
     minv = np.min(vs[:, 1])
+    vs[:, 1] -=  minv 
     maxv = np.max(vs[:, 1]) - 0.1
+
     eigs, ns, waves = [], [], []
-    for e in np.linspace(minv, maxv, 10):
+    for e in np.linspace(0, maxv, 6):
         solver = Solver(vs, e)
         if solver.n not in ns:
             ns.append(solver.n)
