@@ -71,34 +71,42 @@ class Solver():
     """
     A numerical solver for 1D Schordinger equation
     Args:
-    V
+    V: 2D array to describe the potential function [position, values]
 
     Atrributes:
 
     """
-    def __init__(self, V, e, ni=30, de=0.1, e_tol=1e-6, x_min=-10, x_max=10, nx=500):
-        self.x_min, self.x_max, self.nx = x_min, x_max, nx
-        self.xs = np.linspace(x_min, x_max, nx+1)
-        self.y =  np.empty(nx+1)
-        self.ul = np.zeros(nx+1)
-        self.ur = np.zeros(nx+1)
-        self.ql = np.zeros(nx+1)
-        self.qr = np.zeros(nx+1)
-        self.s =  np.zeros(nx+1)
-        self.u =  np.zeros(nx+1)
-        self.h = (self.x_max -self.x_min)/self.nx
-        self.V = V
+    def __init__(self, V, e, ni=30, de=0.1, e_tol=1e-6):
+        #self.x_min, self.x_max, self.nx = x_min, x_max, nx
+        #self.xs = np.linspace(x_min, x_max, nx+1)
+        self.parse_V(V)
+
+        self.y =  np.empty(self.nx)
+        self.ul = np.zeros(self.nx)
+        self.ur = np.zeros(self.nx)
+        self.ql = np.zeros(self.nx)
+        self.qr = np.zeros(self.nx)
+        self.s =  np.zeros(self.nx)
+        self.u =  np.zeros(self.nx)
+        
         self.ni = ni
         self.de = de
         self.e_tol = e_tol
         self.eigenvalue = self.secant(self.ni, self.e_tol, e, self.de)
         self.n = self.get_level()
-        print("{:4d} {:12.4f}".format(self.n, self.eigenvalue))
+        print("{:4d} {:12.4f} {:12.4f}".format(self.n, e, self.eigenvalue))
 
-    #def get_eigenvalue(self, e):
+    def parse_V(self, V):
+        """
+        function to parse the potential array
+        """
+        self.V_array = V[:, 1]
+        self.x_array = V[:, 0]
+        self.nx = len(V)
+        self.h = V[1, 0] - V[0, 0] 
 
     def plot_wavefunction(self, figname=None):
-        plt.plot(self.xs, self.u)
+        plt.plot(self.xarray, self.u)
         if figname is None:
             plt.show()
         else:
@@ -107,7 +115,7 @@ class Solver():
     def get_level(self):
         # Find the matching point at the right turning point
         count = 0
-        for i in range(self.nx):
+        for i in range(self.nx-1):
             if self.u[i]*self.u[i+1]<0:
                 count += 1
         return count
@@ -130,7 +138,7 @@ class Solver():
         Method to provide the function for the root search
         """
         nl, nr = self.wave(x)
-        if max([nr, nl]) > self.nx+1:
+        if max([nr, nl]) > self.nx:
             return 0
         else:
             f0 = self.ur[nr-1] + self.ul[nl-1] - self.ur[nr-3] - self.ul[nl-3]
@@ -142,18 +150,17 @@ class Solver():
         """
     
         # Set up function q(x) in the equation
-        for i in range(self.nx+1):
-            x = self.x_min + i*self.h
-            self.ql[i] = 2*(energy-self.V(x))
-            self.qr[self.nx-i] = self.ql[i]
+        self.ql = 2*(energy-self.V_array)
+        for i in range(self.nx):
+            self.qr[self.nx-i-1] = self.ql[i]
     
         # Find the matching point at the right turning point
         im = 0
-        for i in range(self.nx):
+        for i in range(self.nx-1):
             if self.ql[i]*self.ql[i+1]<0 and self.ql[i]>0:
                 im = i
                 break
-        nl, nr = im+2, self.nx-im+2
+        nl, nr = im+2, self.nx-im+1
         if im > 0:
             # Carry out the Numerov integrations
             self.ul = numerov(nl, self.h, self.ql, self.s)
@@ -177,23 +184,42 @@ class Solver():
         return nl, nr
 
 if __name__ == "__main__":
-    eigs = []
-    ns = []
-    waves = []
-    xs = []
-    for e in np.linspace(-1.5, 2.8, 10):
-        solver = Solver(v, e)
+
+    # create potential data, it must be evenly spaced
+    vs = []
+    for x in np.linspace(-10, 10, 501):
+        vs.append([x, v(x)])
+    vs = np.array(vs)
+
+    minv = np.min(vs[:, 1])
+    maxv = np.max(vs[:, 1]) - 0.1
+    eigs, ns, waves = [], [], []
+    for e in np.linspace(minv, maxv, 10):
+        solver = Solver(vs, e)
         if solver.n not in ns:
             ns.append(solver.n)
             eigs.append(solver.eigenvalue)
-            xs.append(solver.xs)
             waves.append(solver.u)
-
+    
+    fig = plt.gcf()
+    fig.set_size_inches(10, 8)
+    ax1 = plt.subplot(211)
     for i, n in enumerate(ns):
         eig_str = "{:6.2f}".format(eigs[i])
-        plt.plot(xs[i], waves[i], label=str(n) + ': ' + eig_str)
+        ax1.plot(vs[:, 0], waves[i], '--', label=str(n) + ': ' + eig_str)
         #solver.plot_wavefunction()
-    plt.legend()
+    ax1.set_ylabel('$\Psi(x)$')
+    ax1.legend()
+    plt.setp(ax1.get_xticklabels(), visible=False)
+
+
+    ax2 = plt.subplot(212, sharex=ax1)
+    ax2.plot(vs[:, 0], vs[:, 1], 'b-')
+    for eig in eigs:
+        ax2.hlines(y=eig, xmin=vs[0,0], xmax=vs[-1,0], linewidth=1)
+    ax2.set_ylabel('$V(x)$')
+    ax2.set_xlabel('$x$')
+    plt.tight_layout()
     plt.savefig('wavefunction.png')
     plt.close()
     #plt.show()
