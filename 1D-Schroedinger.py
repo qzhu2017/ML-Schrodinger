@@ -1,29 +1,11 @@
 import numpy as np
+from math import cosh, pow, sqrt
 import sys
+import matplotlib.pyplot as plt
+plt.style.use("bmh")
 
-def secant(f, niter, x_tol, x, dx):
-    """
-    Method to carry out the secant search.
-    Args:
-    f: function for root search
-    x0: point 1
-    x1: point 2
-    n: number of cycles
 
-    Return: the point between x0 and x1
-    """
-    x1 = x+dx
-    for i in range(niter):
-        if abs(dx) < x_tol:   
-            return x1
-        d = f(x1) - f(x)
-        x2 = x1 - f(x1)*(x1-x)/d
-        x, x1 = x1, x2
-        dx = x1 - x
-        #print('search:  ', i, x1)
-    return x1
-
-def numerov(m, h, u0, u1, q, s):
+def numerov(m, h, q, s, u0=0, u1=0.01):
     """
     Method to perform the Numerov integration
     Args:
@@ -34,11 +16,12 @@ def numerov(m, h, u0, u1, q, s):
 
     Return: 
     """
+
     g = h*h/12
     u = np.empty(m)
     u[0] = u0
     u[1] = u1
-    #print('numerov:   ', m, len(q), len(s))
+
     for i in range(1, m-1):
         c0 = 1+g*q[i-1]
         c1 = 2-10*g*q[i]
@@ -47,110 +30,167 @@ def numerov(m, h, u0, u1, q, s):
         u[i+1] = (c1*u[i]-c0*u[i-1]+d)/c2
     return u
 
-def f(x):
+
+def simpson(y, h):
     """
-    Method to provide the function for the root search
+    Method to achieve the evenly spaced Simpson rule.
     """
-    u, ur, ul, nr, nl = wave(x)
-    if max([nr, nl]) > nx+1:
-        return 0
+    n = len(y)-1
+    s0 = 0
+    s1 = 0
+    s2 = 0
+    for i in range(1, n, +2):
+      s0 += y[i]
+      s1 += y[i-1]
+      s2 += y[i+1]
+    
+    s = (s1+4*s0+s2)/3
+
+    # Add the last slice separately for an even n+1
+    if ((n+1)%2 == 0):
+        return h*(s+(5*y[n]+8*y[n-1]-y[n-2])/12)
     else:
-        f0 = ur[nr-1]+ul[nl-1]-ur[nr-3]-ul[nl-3]
-    return f0/(2*h*ur[nr-2])
+        return h*s
 
-def wave(energy):
+# Method to provide the given potential in the problem.
+def v(x, a=1.0, la=4.0):
+    return a*a*la*(la-1)*(0.5-1/pow(cosh(a*x),2))/2
+
+   
+class potential():
     """
-    Method to calculate the wavefunction.
+    A class to define the potential
+    So far we only do the cosh function
     """
-    y =  np.empty(nx+1)
-    ul = np.zeros(nx+1)
-    ur = np.zeros(nx+1)
-    ql = np.zeros(nx+1)
-    qr = np.zeros(nx+1)
-    s =  np.zeros(nx+1)
-    u =  np.zeros(nx+1)
+    def __init__(self, x, alpha=1, lambda0=4):
+        def cosh(x):
+            return (np.exp(x) + np.exp(-x))/2
+        return alpha*alpha*lambda0*(lambda0-1)*(0.5-1/pow(cosh(alpha*x), 2))/2
 
-    ua, ub = 0, 0.01
+class Solver():
+    """
+    A numerical solver for 1D Schordinger equation
+    Args:
+    V
 
-    # Set up function q(x) in the equation
-    for i in range(nx+1):
-        x = x1 + i*h
-        ql[i] = 2*(energy-V(x))
-        qr[nx-i] = ql[i]
+    Atrributes:
 
-    # Find the matching point at the right turning point
-    im = 0
-    for i in range(nx):
-        if ql[i]*ql[i+1]<0 and ql[i]>0:
-            im = i
-            break
-    nl, nr = im+2, nx-im+2
-    if im > 0:
-        #print('cannot find the turning point')
-        #sys.exit()
-        # Carry out the Numerov integrations
-        ul = numerov(nl, h, ua, ub, ql, s)
-        ur = numerov(nr, h, ua, ub, qr, s)
-        #print('Numerov', ul, ur)
-        # Find the wavefunction on the left 
-        ratio = ur[nr-2]/ul[im]
-        for i in range(im):
-            u[i] = ratio*ul[i]
-            y[i] = u[i]*u[i]
-        ul[nl-1] *= ratio
-        ul[nl-3] *= ratio
+    """
+    def __init__(self, V, e, ni=30, de=0.1, e_tol=1e-6, x_min=-10, x_max=10, nx=500):
+        self.x_min, self.x_max, self.nx = x_min, x_max, nx
+        self.xs = np.linspace(x_min, x_max, nx+1)
+        self.y =  np.empty(nx+1)
+        self.ul = np.zeros(nx+1)
+        self.ur = np.zeros(nx+1)
+        self.ql = np.zeros(nx+1)
+        self.qr = np.zeros(nx+1)
+        self.s =  np.zeros(nx+1)
+        self.u =  np.zeros(nx+1)
+        self.h = (self.x_max -self.x_min)/self.nx
+        self.V = V
+        self.ni = ni
+        self.de = de
+        self.e_tol = e_tol
+        self.eigenvalue = self.secant(self.ni, self.e_tol, e, self.de)
+        self.n = self.get_level()
+        print("{:4d} {:12.4f}".format(self.n, self.eigenvalue))
 
-        # Find the wavefunction on the right
-        for i in range(nr-1):
-            u[i+im] = ur[nr-i-2]
-            #print('right: ', u[i+im], i+im)
-            y[i+im] = u[i+im]*u[i+im]
+    #def get_eigenvalue(self, e):
 
-        # Normalize the wavefunction
-        sum0 = integrate(y, h)
-        u = u/sum0
+    def plot_wavefunction(self, figname=None):
+        plt.plot(self.xs, self.u)
+        if figname is None:
+            plt.show()
+        else:
+            plt.savefig(figname)
 
-    return u, ur, ul, nr, nl
+    def get_level(self):
+        # Find the matching point at the right turning point
+        count = 0
+        for i in range(self.nx):
+            if self.u[i]*self.u[i+1]<0:
+                count += 1
+        return count
 
-def integrate(y, h):
-    sum0 = 0
-    for i in range(len(y)):
-        if i==0 or i==len(y):
-            coef=1/3
-        elif i%2 == 1:
-            coef = 4/3
-        else: 
-            coef = 2/3
-        sum0 += coef*y[i]
-    return h*sum0
+    def secant(self, n, dt, x, dx):
+        k = 0
+        x1 = x+dx
+        while ((abs(dx)>dt) and (k<n)):
+            d = self.f(x1)-self.f(x)
+            x2 = x1-self.f(x1)*(x1-x)/d
+            x, x1 = x1, x2
+            dx = x1-x
+            k += 1
+            if (k==n):
+                print("Convergence not found after ", n, " iterations")
+        return x1
 
-def V(x, alpha=1, lambda0=4):
-    def cosh(x):
-        return (np.exp(x) + np.exp(-x))/2
-    return alpha*alpha*lambda0*(lambda0-1)*(0.5-1/pow(cosh(alpha*x), 2))/2
+    def f(self, x):
+        """
+        Method to provide the function for the root search
+        """
+        nl, nr = self.wave(x)
+        if max([nr, nl]) > self.nx+1:
+            return 0
+        else:
+            f0 = self.ur[nr-1] + self.ul[nl-1] - self.ur[nr-3] - self.ul[nl-3]
+        return f0/(2*self.h*self.ur[nr-2])
 
-"""
-    def __init__(self, pots, e=2.4, de=0.1, dx=1e-6):
-        x1, x2, nx = 10, -10, 500
-        m = 10  #
-        ni = 10 #
-        h = (x2-x1)/nx
-        X = np.linspace(x1, x2, nx+1)
-        pots = V(X)
-"""
+    def wave(self, energy):
+        """
+        Method to calculate the wavefunction based on the guess of energy.
+        """
+    
+        # Set up function q(x) in the equation
+        for i in range(self.nx+1):
+            x = self.x_min + i*self.h
+            self.ql[i] = 2*(energy-self.V(x))
+            self.qr[self.nx-i] = self.ql[i]
+    
+        # Find the matching point at the right turning point
+        im = 0
+        for i in range(self.nx):
+            if self.ql[i]*self.ql[i+1]<0 and self.ql[i]>0:
+                im = i
+                break
+        nl, nr = im+2, self.nx-im+2
+        if im > 0:
+            # Carry out the Numerov integrations
+            self.ul = numerov(nl, self.h, self.ql, self.s)
+            self.ur = numerov(nr, self.h, self.qr, self.s)
+            # Find the wavefunction on the left 
+            ratio = self.ur[nr-2]/self.ul[im]
+            for i in range(im):
+                self.u[i] = ratio*self.ul[i]
+                self.y[i] = self.u[i]*self.u[i]
+            self.ul[nl-1] *= ratio
+            self.ul[nl-3] *= ratio
+    
+            # Find the wavefunction on the right
+            for i in range(nr-1):
+                self.u[i+im] = self.ur[nr-i-2]
+                self.y[i+im] = self.u[i+im]*self.u[i+im]
+    
+            # Normalize the wavefunction
+            sum0 = simpson(self.y, self.h)
+            self.u = self.u/sqrt(sum0)
+        return nl, nr
 
 if __name__ == "__main__":
+    eigs = []
+    ns = []
+    waves = []
+    for e in np.linspace(-1.5, 2.8, 10):
+        solver = Solver(v, e)
+        if solver.n not in ns:
+            ns.append(solver.n)
+            eigs.append(solver.eigenvalue)
+            waves.append(solver.u)
 
-    alpha = 1
-    lambda0 = 4
-    tmp = lambda0*(lambda0-1)/2
-    for n in range(10):
-        print(n, alpha*alpha*(tmp-(lambda0-1-n)*(lambda0-1-n))/2)
-    de, e_tol = 0.1, 1e-6
-    x1, x2, nx = 10, -10, 500
-    m = 10  #
-    ni = 10 #
-    h = (x2-x1)/nx
-    for e in np.linspace(-5, 5, 50):
-        eigenvalue = secant(f, ni, e_tol, e, de)
-        print("{:12.4f}: {:12.4f}".format(e, eigenvalue))
+    for i, n in enumerate(ns):
+        eig_str = "{:4.2f}".format(eigs[i])
+        plt.plot(waves[i], label=str(n) + ': ' + eig_str)
+        #solver.plot_wavefunction()
+    plt.legend()
+    plt.savefig('wavefunction.png')
+    plt.show()
