@@ -108,7 +108,7 @@ class Solver():
     Atrributes:
 
     """
-    def __init__(self, V, e, ni=30, de=0.1, e_tol=1e-6):
+    def __init__(self, V, e, ni=50, de=0.1, e_tol=1e-6):
         self.parse_V(V)
 
         self.y =  np.empty(self.nx)
@@ -199,7 +199,7 @@ class Solver():
             self.qr[self.nx-i-1] = self.ql[i]
     
         # Find the matching point at the right turning point
-        im = 0
+        im = int(self.nx/2)
         for i in range(self.nx-1):
             if self.ql[i]*self.ql[i+1]<0 and self.ql[i]>0:
                 im = i
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     maxv = np.max(vs[:, 1]) - 0.1
     eigs, ns, waves = [], [], []
     print("Level    init_value   Eigenvalue")
-    for e in np.linspace(minv, maxv/10, 10):
+    for e in np.linspace(minv, maxv/20, 10):
         solver = Solver(vs, e)
         print("{:4d} {:12.4f} {:12.4f}".format(solver.n, e, solver.eigenvalue))
         if solver.valid and solver.n not in ns:
