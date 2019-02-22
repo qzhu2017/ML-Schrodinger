@@ -1,8 +1,9 @@
 import numpy as np
-from math import cosh, pow, sqrt
+from math import sqrt
 import sys
 import matplotlib.pyplot as plt
 plt.style.use("bmh")
+
 
 
 def numerov(m, h, q, s=None, u0=0, u1=0.01):
@@ -54,20 +55,49 @@ def simpson(y, h):
     else:
         return h*s
 
-# Method to provide the given potential in the problem.
-def v(x, a=1.0, la=4.0):
-    return a*a*la*(la-1)*(0.5-1/pow(cosh(a*x),2))/2
-
-   
 class potential():
     """
     A class to define the potential
     So far we only do the cosh function
     """
-    def __init__(self, x, alpha=1, lambda0=4):
-        def cosh(x):
-            return (np.exp(x) + np.exp(-x))/2
-        return alpha*alpha*lambda0*(lambda0-1)*(0.5-1/pow(cosh(alpha*x), 2))/2
+    def __init__(self, xmin=-10, xmax=10, n=501, func='oscilator', **kwargs):
+        self.funcs = ['oscilator', 'cosineh']
+        self.xs = np.linspace(xmin, xmax, n)
+        self.func = func
+        self.default_params = {'omega': 1.0, 'm': 1.0, 'a': 1.0, 'la': 4.0}
+        if self.func == 'oscilator':
+            self.vs = self.oscilator(**kwargs)
+        elif self.func == 'cosineh':
+            self.vs = self.cosineh()
+        else:
+            print('Error, the function'+ self.func + 'is not supported')
+            print('Only the following funcs are supported')
+            print(self.funcs)
+        self.data = np.vstack((self.xs, self.vs))
+        self.data = self.data.transpose()
+
+    def oscilator(self, **kwargs):
+        keys = ['omega', 'm']
+        out = self.get_params(keys, **kwargs)
+        omega, m = out[0], out[1]
+        return 0.5*m*omega*omega*np.power(self.xs, 2)
+
+    def cosineh(self, **kwargs):
+        keys = ['a', 'la']
+        out = self.get_params(keys, **kwargs)
+        a, la = out[0], out[1]
+        a2 = a*a
+        c = a2*la*(la-1)
+        return c*(0.5-1/np.power(np.cosh(a*self.xs),2))/2
+
+    def get_params(self, dict_name, **kwargs):
+        out = []
+        for key in dict_name:
+            if key in kwargs.keys():
+                out.append(kwargs[key])
+            else:
+                out.append(self.default_params[key])
+        return out
 
 class Solver():
     """
@@ -79,8 +109,6 @@ class Solver():
 
     """
     def __init__(self, V, e, ni=30, de=0.1, e_tol=1e-6):
-        #self.x_min, self.x_max, self.nx = x_min, x_max, nx
-        #self.xs = np.linspace(x_min, x_max, nx+1)
         self.parse_V(V)
 
         self.y =  np.empty(self.nx)
@@ -92,10 +120,10 @@ class Solver():
         
         self.ni = ni
         self.de = de
+        self.e = e
         self.e_tol = e_tol
         self.eigenvalue = self.secant(self.ni, self.e_tol, e, self.de)
         self.n = self.get_level()
-        print("{:4d} {:12.4f} {:12.4f}".format(self.n, e, self.eigenvalue))
 
     def parse_V(self, V):
         """
@@ -186,18 +214,16 @@ class Solver():
 
 if __name__ == "__main__":
 
-    # create potential data, it must be evenly spaced
-    vs = []
-    for x in np.linspace(-10, 10, 501):
-        vs.append([x, v(x)])
-    vs = np.array(vs)
-    minv = np.min(vs[:, 1])
-    vs[:, 1] -=  minv 
-    maxv = np.max(vs[:, 1]) - 0.1
+    params = {'omega': 1.0, 'm': 1.0}
+    vs = potential(**params).data
 
+    minv = np.min(vs[:, 1])
+    maxv = np.max(vs[:, 1]) - 0.1
     eigs, ns, waves = [], [], []
-    for e in np.linspace(0, maxv, 6):
+    print("Level    init_value   Eigenvalue")
+    for e in np.linspace(minv, maxv/10, 6):
         solver = Solver(vs, e)
+        print("{:4d} {:12.4f} {:12.4f}".format(solver.n, e, solver.eigenvalue))
         if solver.n not in ns:
             ns.append(solver.n)
             eigs.append(solver.eigenvalue)
