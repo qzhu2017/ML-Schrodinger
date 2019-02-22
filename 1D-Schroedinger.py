@@ -124,6 +124,7 @@ class Solver():
         self.e_tol = e_tol
         self.eigenvalue = self.secant(self.ni, self.e_tol, e, self.de)
         self.n = self.get_level()
+        self.check_validity()
 
     def parse_V(self, V):
         """
@@ -135,11 +136,25 @@ class Solver():
         self.h = V[1, 0] - V[0, 0] 
 
     def plot_wavefunction(self, figname=None):
-        plt.plot(self.xarray, self.u)
+        plt.plot(self.x_array, self.u)
         if figname is None:
             plt.show()
         else:
             plt.savefig(figname)
+
+    def check_validity(self):
+        """
+        check if the returned wavefunction is valid
+        based on the symmetry
+        """
+        negative_sum = np.sum(self.u[self.x_array > 0])
+        positive_sum = np.sum(self.u[self.x_array < 0])
+        if abs(negative_sum + positive_sum) < 1e-2 or \
+           abs(negative_sum - positive_sum) < 1e-2:
+            self.valid = True
+        else:
+            self.valid = False
+
 
     def get_level(self):
         # Find the matching point at the right turning point
@@ -221,10 +236,10 @@ if __name__ == "__main__":
     maxv = np.max(vs[:, 1]) - 0.1
     eigs, ns, waves = [], [], []
     print("Level    init_value   Eigenvalue")
-    for e in np.linspace(minv, maxv/10, 6):
+    for e in np.linspace(minv, maxv/10, 10):
         solver = Solver(vs, e)
         print("{:4d} {:12.4f} {:12.4f}".format(solver.n, e, solver.eigenvalue))
-        if solver.n not in ns:
+        if solver.valid and solver.n not in ns:
             ns.append(solver.n)
             eigs.append(solver.eigenvalue)
             waves.append(solver.u)
@@ -237,7 +252,7 @@ if __name__ == "__main__":
         ax1.plot(vs[:, 0], waves[i], '--', label=str(n) + ': ' + eig_str)
         #solver.plot_wavefunction()
     ax1.set_ylabel('$\Psi(x)$')
-    ax1.legend()
+    ax1.legend(loc=2)
     plt.setp(ax1.get_xticklabels(), visible=False)
 
 
