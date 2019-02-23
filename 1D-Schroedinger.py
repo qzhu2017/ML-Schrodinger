@@ -3,7 +3,8 @@ from math import sqrt
 import sys
 import matplotlib.pyplot as plt
 plt.style.use("bmh")
-delta = 0.2
+omega = 1.0
+delta = 0.2*omega
 def numerov(m, h, q, s=None, u0=0, u1=0.01):
     """
     Method to perform the Numerov integration
