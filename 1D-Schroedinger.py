@@ -3,9 +3,7 @@ from math import sqrt
 import sys
 import matplotlib.pyplot as plt
 plt.style.use("bmh")
-
-
-
+delta = 0.2
 def numerov(m, h, q, s=None, u0=0, u1=0.01):
     """
     Method to perform the Numerov integration
@@ -171,6 +169,8 @@ class Solver():
             d = self.f(x1)-self.f(x)
             x2 = x1-self.f(x1)*(x1-x)/d
             x, x1 = x1, x2
+            if (abs(x1-x)>delta):
+              x1=np.sign(x1-x)*delta+x
             dx = x1-x
             k += 1
             if (k==n):
