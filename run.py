@@ -2,21 +2,53 @@ import numpy as np
 from math import sqrt, pi
 import sys
 import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
+from monty.serialization import loadfn, MontyDecoder,MontyEncoder
+import json
+
 plt.style.use("bmh")
 
+def plot_results(json_data, lists=[0], figname='result.png'):
+# plot the results
+    fig = plt.gcf()
+    fig.set_size_inches(10, 8)
+    ax1 = plt.subplot(211)
+    for i in lists:
+        data = json_data[i]
+        eig_str = "{:d} {:6.2f}".format(data['eigenvalue'][0], data['eigenvalue'][1])
+        ax1.plot(data['potential'][:, 0], data['wavefunction'], '--', label=eig_str)
+    ax1.set_ylabel('$\Psi(x)$')
+    ax1.legend(loc=2)
+    plt.setp(ax1.get_xticklabels(), visible=False)
+
+
+    ax2 = plt.subplot(212, sharex=ax1)
+    for i in lists:
+        data = json_data[i]
+        ax2.hlines(y=data['eigenvalue'][1], xmin=data['potential'][0,0], xmax=data['potential'][-1,0], linewidth=1)
+        ax2.plot(data['potential'][:, 0], data['potential'][:, 1], 'b-')
+    ax2.set_ylabel('$V(x)$')
+    ax2.set_xlabel('$x$')
+    #ax2.set_ylim([0, 2*max(eigs)])
+    plt.tight_layout()
+    plt.savefig('result.png')
+    plt.close()
 
 def numerov(m, h, q, s=None, u0=0, u1=0.01):
     """
     Method to perform the Numerov integration
+    Numerov method is to solve the differential 
+    equations of d2f/dx2 = -q(x)f(x) + s(x)
+    more detials can be found in
+    https://en.wikipedia.org/wiki/Numerov%27s_method
+
     Args:
     m: length of the wavefunction array
     h: step size 
-    q:
+    q: 1D array denotes the coefficient of f(x)
 
     Return: 
-    u: wave function data
     """
-
     if s is None:
         s = np.zeros(m)
 
@@ -24,7 +56,7 @@ def numerov(m, h, q, s=None, u0=0, u1=0.01):
     u = np.empty(m)
     u[0] = u0
     u[1] = u1
-
+    
     for i in range(1, m-1):
         c0 = 1+g*q[i-1]
         c1 = 2-10*g*q[i]
@@ -133,11 +165,11 @@ class Solver():
 
         self.parse_V(V)
 
-        self.ul = np.zeros(self.nx) #wavefunction from left
-        self.ur = np.zeros(self.nx) #wavefunction from right
-        self.ql = np.zeros(self.nx) #q function from left
-        self.qr = np.zeros(self.nx) #q function from right
-        self.u =  np.zeros(self.nx) #total wavefunction 
+        self.ul = np.zeros(self.nx) # wavefunction from left
+        self.ur = np.zeros(self.nx) # wavefunction from right
+        self.ql = np.zeros(self.nx) # q function from left
+        self.qr = np.zeros(self.nx) # q function from right
+        self.u =  np.zeros(self.nx) # total wavefunction 
         
         self.ni = ni
         self.de_max = de_max
@@ -145,6 +177,7 @@ class Solver():
         self.e_tol = e_tol
         self.eigenvalue = self.secant(self.ni, self.e_tol, e, self.de_max)
         self.n = self.get_level()
+        self.valid = True
         #self.check_validity()
 
     def parse_V(self, V):
@@ -206,6 +239,7 @@ class Solver():
             k += 1
             if (k==n):
                 print("Convergence not found after ", n, " iterations")
+                self.valid = False
             #print(x1)
         return x1
 
@@ -259,53 +293,60 @@ class Solver():
 
 if __name__ == "__main__":
 
-    #params = {'omega': 2.0, 'm': 2.0}
-    #vs = potential(**params).data
-    omegas = np.linspace(0.3, 1, 3)
-    ms = np.linspace(0.3, 1, 3)
-    mus = [-1, 0, 1] 
-    deltas = [0.6, 0.8, 1.0]
-    eigs, ns, waves, vs = [], [], [], []
-    print("  m omega Level    init_value   Eigenvalue")
+    omegas = np.linspace(1, 10, 10)
+    ms = [1]
+    degrees = range(5)
+    n = 10 # random points
+
+    json_data = []
     for omega in omegas:
         for m in ms:
-            for mu in mus:
-                for delta in deltas:
-                    v = potential(perturb=True, omega=omega, m=m, mu=mu, delta=delta).data
-                    minv = np.min(v[:, 1])
-                    for e in np.linspace(minv, omega, 10):
-                        solver = Solver(v, e, de_max=omega)
-                        #if solver.valid and solver.n==0: # not in ns:
-                        if solver.n==0: # not in ns:
-                            print("{:4.2f} {:4.2f} {:4d} {:12.4f} {:12.4f}".
-                            format(omega, m, solver.n, e, solver.eigenvalue))
-                            ns.append(solver.n)
-                            eigs.append(solver.eigenvalue)
-                            waves.append(solver.u)
-                            vs.append(v)
+            for degree in degrees:
+                for i in range(10):
+                    v0 = potential(omega=omega, m=m, n=n).data
+                    x, y = v0[:,0], v0[:, 1]
+                    y += degree*omega*np.random.uniform(-1, 1, n)/3
+
+                    # shift the minimum to (0, 0)
+                    # fit returns Ax**2 + Bx + C
+                    fit = np.polyfit(x, y, 2)
+                    dx = -fit[1]/fit[0]/2
+                    dy = fit[2] - fit[0]*dx*dx
+                    x, y = x-dx, y-dy
+
+                    # interpolate the results to obtain smooth curves
+                    func = interp1d(x, y, kind='cubic')
+                    x1 = np.linspace(-8, 8, 501)
+                    y1 = func(x1)
+                    v = np.vstack((x1, y1))
+                    v = np.transpose(v)
+
+                    # attempt to solve the results from e=0
+                    e = 0
+                    count = 0
+                    while True:
+                        count += 1
+                        if count > 10:
+                            print('too many failures for this run')
                             break
-    
-    fig = plt.gcf()
-    fig.set_size_inches(10, 8)
-    ax1 = plt.subplot(211)
-    for i, n in enumerate(ns):
-        eig_str = "{:6.2f}".format(eigs[i])
-        ax1.plot(vs[i][:, 0], waves[i], '--', label=str(n) + ': ' + eig_str)
-        #solver.plot_wavefunction()
-    ax1.set_ylabel('$\Psi(x)$')
-    #ax1.legend(loc=2)
-    plt.setp(ax1.get_xticklabels(), visible=False)
+                        else:
+                            solver = Solver(v, e, de_max=0.2*omega)
+                            if solver.valid and solver.n == 0:
+                                print("{:4d} {:12.4f} {:12.4f}++++++++".format(solver.n, e, solver.eigenvalue))
+                                data = {'potential': v,
+                                        'wavefunction': solver.u,
+                                        'eigenvalue': [solver.n, solver.eigenvalue],
+                                        }
+                                json_data.append(data)
+                                break
+                            else:
+                                # if the results is not ground states, decrease e value
+                                print("{:4d} {:12.4f} {:12.4f}".format(solver.n, e, solver.eigenvalue))
+                                e -= 0.5*omega
 
+json_file = 'trainingdata.json'
+with open(json_file, "w") as f:
+    json.dump(json_data, f, cls=MontyEncoder, indent=1)
 
-    ax2 = plt.subplot(212, sharex=ax1)
-    #ax2.plot(vs[:, 0], vs[:, 1], 'b-')
-    for v, eig in zip(vs, eigs):
-        ax2.hlines(y=eig, xmin=v[0,0], xmax=v[-1,0], linewidth=1)
-        ax2.plot(v[:, 0], v[:, 1], 'b-')
-    ax2.set_ylabel('$V(x)$')
-    ax2.set_xlabel('$x$')
-    ax2.set_ylim([0, 2*max(eigs)])
-    plt.tight_layout()
-    plt.savefig('result.png')
-    plt.close()
-    #plt.show()
+plot_results(json_data, lists=[0], figname='result.png')
+
