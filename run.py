@@ -8,6 +8,28 @@ import json
 
 plt.style.use("bmh")
 
+def process_potential(v0):
+    #v0 = potential(omega=omega, m=m, n=n).data
+    x, y = v0[:,0], v0[:, 1]
+    #y += degree*omega*np.random.uniform(-1, 1, n)
+
+    # shift the minimum to (0, 0)
+    # fit returns Ax**2 + Bx + C
+    fit = np.polyfit(x, y, 2)
+    dx = -fit[1]/fit[0]/2
+    dy = fit[2] - fit[0]*dx*dx
+    x, y = x-dx, y-dy
+
+    # interpolate the results to obtain smooth curves
+    func = interp1d(x, y, kind='cubic')
+    x1 = np.linspace(-8, 8, 501)
+    y1 = func(x1)
+    v = np.vstack((x1, y1))
+    v = np.transpose(v)
+
+    return v
+
+
 def plot_results(json_data, lists=[0], figname='result.png'):
 # plot the results
     fig = plt.gcf()
@@ -295,33 +317,26 @@ if __name__ == "__main__":
 
     omegas = np.linspace(1, 10, 10)
     ms = [1]
-    degrees = range(5)
+    degrees = range(10)
     n = 10 # random points
 
     json_data = []
     for omega in omegas:
         for m in ms:
             for degree in degrees:
-                for i in range(10):
+                if degree == 0:
+                    N_iter = 1
+                else:
+                    N_iter = 10
+                for i in range(N_iter):
                     v0 = potential(omega=omega, m=m, n=n).data
-                    x, y = v0[:,0], v0[:, 1]
-                    y += degree*omega*np.random.uniform(-1, 1, n)/3
+                    v0[:, 1] += degree*omega*np.random.uniform(-1, 1, n)
+                    v = process_potential(v0)
 
-                    # shift the minimum to (0, 0)
-                    # fit returns Ax**2 + Bx + C
-                    fit = np.polyfit(x, y, 2)
-                    dx = -fit[1]/fit[0]/2
-                    dy = fit[2] - fit[0]*dx*dx
-                    x, y = x-dx, y-dy
+                    """ 
+                    we attempt to solve the results starting from e=0
+                    """
 
-                    # interpolate the results to obtain smooth curves
-                    func = interp1d(x, y, kind='cubic')
-                    x1 = np.linspace(-8, 8, 501)
-                    y1 = func(x1)
-                    v = np.vstack((x1, y1))
-                    v = np.transpose(v)
-
-                    # attempt to solve the results from e=0
                     e = 0
                     count = 0
                     while True:

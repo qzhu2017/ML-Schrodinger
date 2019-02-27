@@ -1,10 +1,7 @@
-import numpy as np
-from math import sqrt, pi
-import sys
+#import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 from monty.serialization import loadfn, MontyDecoder,MontyEncoder
-import json
+import os
 
 plt.style.use("bmh")
 
@@ -37,5 +34,18 @@ def plot_results(json_data, lists=[0], figname='result.png', title=None):
     plt.close()
 
 json_data = loadfn('trainingdata.json', cls=MontyDecoder)
+
+folder = 'figs'
+if not os.path.isdir(folder):
+    os.mkdir(folder)
+    
 for i in range(len(json_data)):
-    plot_results(json_data, [i], figname='figs/'+str(i)+'.png', title=str(i))
+    if i < 10:
+        string = '00'+str(i)
+    elif i<100:
+        string = '0'+str(i)
+    else:
+        string = str(i)
+
+    plot_results(json_data, [i], figname=folder+'/'+string+'.png', title=folder+'/'+string+'.png')
+os.system('convert -loop 0 -delay 20 ' + folder + '/*.png out.gif')
